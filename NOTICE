@@ -1,0 +1,6 @@
+The C ABI glue in export.go and the release packaging script in
+.github/scripts/package-release.go are derived from
+jellyfish-p/cpa-plugin-antigravity-coding-filter, licensed under the MIT
+License. Copyright (c) 2026 jellyfish.
+
+The identity rewrite is original.

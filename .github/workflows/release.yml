@@ -1,0 +1,118 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  PLUGIN_ID: antigravity-identity-filter
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: |
+          go test ./...
+          go test ./.github/scripts
+
+      - name: Vet
+        run: |
+          go vet ./...
+          go vet ./.github/scripts
+
+  build-windows-dll:
+    name: Build windows/amd64 DLL
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install mingw-w64
+        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
+
+      - name: Resolve release metadata
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=${VERSION}" >> "${GITHUB_ENV}"
+          echo "ARCHIVE_NAME=${PLUGIN_ID}_${VERSION}_windows_amd64.zip" >> "${GITHUB_ENV}"
+
+      - name: Cross-compile Windows c-shared DLL
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          CC=x86_64-w64-mingw32-gcc \
+          CXX=x86_64-w64-mingw32-g++ \
+          CGO_ENABLED=1 \
+          GOOS=windows \
+          GOARCH=amd64 \
+            go build -trimpath -buildmode=c-shared \
+              -ldflags "-s -w" \
+              -o "dist/${PLUGIN_ID}.dll" .
+          rm -f "dist/${PLUGIN_ID}.h"
+
+      - name: Package plugin
+        run: |
+          set -euo pipefail
+          go run ./.github/scripts/package-release.go \
+            -library "dist/${PLUGIN_ID}.dll" \
+            -archive "${ARCHIVE_NAME}" \
+            -checksum "${ARCHIVE_NAME}.sha256"
+
+      - name: Upload DLL artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARCHIVE_NAME }}
+          path: |
+            ${{ env.ARCHIVE_NAME }}
+            ${{ env.ARCHIVE_NAME }}.sha256
+          if-no-files-found: error
+
+  release:
+    name: Publish
+    needs: build-windows-dll
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sort dist/*.sha256 > dist/checksums.txt
+          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" dist/*.zip dist/checksums.txt --clobber --repo "${GITHUB_REPOSITORY}"
+          else
+            gh release create "${GITHUB_REF_NAME}" dist/*.zip dist/checksums.txt \
+              --repo "${GITHUB_REPOSITORY}" \
+              --verify-tag \
+              --title "${GITHUB_REF_NAME}" \
+              --notes "Windows amd64 CLIProxyAPI v7 plugin. The DLL reports version 1.0.0. This build is a c-shared library produced with mingw-w64, which is the toolchain Go uses for -buildmode=c-shared on Windows."
+          fi
