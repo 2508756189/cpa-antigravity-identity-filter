@@ -114,6 +114,16 @@ func nonEmptyString(body []byte, value rng) (stringSpan, bool, error) {
 	if span.contentStart == span.contentEnd {
 		return stringSpan{}, false, nil
 	}
+	decoded, _, err := decodeJSONString(body[span.contentStart:span.contentEnd])
+	if err != nil {
+		return stringSpan{}, false, err
+	}
+	// Whitespace-only values are not a prompt. Empty instructions ("") already
+	// falls through; " ", "\n", and "\t" must do the same so a later
+	// developer/system identity is still eligible.
+	if strings.TrimSpace(decoded) == "" {
+		return stringSpan{}, false, nil
+	}
 	return span, true, nil
 }
 

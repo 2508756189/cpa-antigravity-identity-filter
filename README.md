@@ -6,7 +6,7 @@ The plugin id comes from the DLL file name. It is not `antigravity-coding-filter
 
 ## What is replaced
 
-Only the first system/developer text, and only when `ToFormat` is `antigravity` (see below). The match is case-sensitive, anchored after any leading whitespace, and applied once. It consumes that first paragraph (through the next blank line) and leaves the blank line and everything after it.
+Only the first system/developer text that contains something other than whitespace, and only when `ToFormat` is `antigravity` (see below). An empty or whitespace-only `instructions` value, text block, or message is skipped. The match is case-sensitive, anchored after any leading whitespace, and applied once. It consumes that first paragraph (through the next blank line) and leaves the blank line and everything after it.
 
 Built-in prefixes, each with its own config toggle (default on):
 
@@ -139,7 +139,7 @@ CLIProxyAPI v7 插件（名称 `antigravity-identity-filter`，版本 1.0.0）�
 
 ## 会替换什么
 
-只处理第一条 system/developer 文本。规则区分大小写，锚定在可选空白之后，只应用一次，并吃掉第一段（直到下一个空行）。空行以及后面的内容不动。
+只处理第一条含有非空白内容的 system/developer 文本。全空或只有空白的 `instructions`、文本块或消息会跳过。规则区分大小写，锚定在可选空白之后，只应用一次，并吃掉第一段（直到下一个空行）。空行以及后面的内容不动。
 
 内置前缀都可以单独关闭，默认开启：
 

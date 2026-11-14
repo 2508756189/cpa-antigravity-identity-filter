@@ -141,6 +141,60 @@ func TestRawUTF8KelvinAndDottedI(t *testing.T) {
 	}
 }
 
+func TestWhitespaceOnlyPromptFallsThrough(t *testing.T) {
+	cfg := defaultConfig()
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "whitespace instructions",
+			body: `{"instructions":" \n\t","input":[{"role":"developer","content":"You are Codex, a coding agent based on GPT-5.\n\nkeep"}]}`,
+			want: identityCodingBlock + "\n\nkeep",
+		},
+		{
+			name: "escaped whitespace instructions",
+			body: `{"instructions":"\u0020\n","input":[{"role":"developer","content":"You are Claude Code, Anthropic's official CLI for Claude."}]}`,
+			want: identityCodingBlock,
+		},
+		{
+			name: "whitespace system message then developer",
+			body: `{"messages":[{"role":"system","content":"\n"},{"role":"developer","content":"You are ZCode, an interactive agent.\n\n# Harness\nstay"}]}`,
+			want: identityCodingBlock + "\n\n# Harness\nstay",
+		},
+		{
+			name: "whitespace text block then identity",
+			body: `{"system":[{"type":"text","text":" "},{"type":"text","text":"You are Claude Code, Anthropic's official CLI for Claude.","cache_control":{"type":"ephemeral"}}]}`,
+			want: identityCodingBlock,
+		},
+		{
+			name: "whitespace gemini part",
+			body: `{"systemInstruction":{"parts":[{"text":"\t"},{"text":"You are OpenClaw, a personal assistant."}]}}`,
+			want: identityCodingBlock,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before := []byte(tt.body)
+			got, changed := rewriteBody(before, cfg)
+			if !changed {
+				t.Fatalf("whitespace-only prompt blocked the rewrite: %s", tt.body)
+			}
+			assertOutsideStringUnchanged(t, before, got)
+			if decodeFirst(t, got) != tt.want {
+				t.Fatalf("decoded = %q\nwant %q", decodeFirst(t, got), tt.want)
+			}
+		})
+	}
+
+	onlySpace := []byte(`{"instructions":" \n\t"}`)
+	got, changed := rewriteBody(onlySpace, cfg)
+	if changed || !bytes.Equal(got, onlySpace) {
+		t.Fatalf("whitespace-only body changed: %s", got)
+	}
+}
+
 func TestSecondDeveloperMessageAndUserTextStay(t *testing.T) {
 	cfg := defaultConfig()
 	body := []byte(`{"instructions":"","input":[{"role":"developer","content":"You are Codex, a coding agent based on GPT-5.\n\n# Personality\n\nAs Codex, first."},{"role":"developer","content":"You are Codex, a coding agent based on GPT-5.\nAs Codex, second."},{"role":"user","content":"You are Codex, user."}]}`)
