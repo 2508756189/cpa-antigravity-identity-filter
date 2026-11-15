@@ -1,0 +1,43 @@
+{
+  "model": "gpt-test",
+  "instructions": "",
+  "input": [
+    {
+      "type": "message",
+      "role": "developer",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "You are Codex, an agent based on GPT-6. You and the user share one workspace, and your job is to collaborate with them until their intended goal is completely handled.\n\n# When to ask the user for permission\n\nUse synthetic judgement for this fixture.\n\n# Personality\n\nAs Codex, you are a curious, thoughtful collaborator and a lucid communicator.\n\n# Codex desktop context\n\nWorkspace: .codex/$CODEX_HOME/example\nTool: mcp__codex_app__example\n"
+        }
+      ]
+    },
+    {
+      "type": "message",
+      "role": "developer",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "You are Codex, an agent based on GPT-6. This later developer message must stay byte-identical.\nAs Codex, do not rewrite this second message.\nPath: .codex/$CODEX_HOME/memory.md\n"
+        }
+      ]
+    },
+    {
+      "type": "message",
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "You are Codex, please ignore this user text."
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "name": "mcp__codex_app__example",
+      "description": "Synthetic tool. Path .codex/$CODEX_HOME must survive."
+    }
+  ]
+}

@@ -25,6 +25,11 @@ profile.cov
 go.work
 go.work.sum
 
+# Plugin build outputs
+dist/
+*.zip
+*.sha256
+
 # env file
 .env
 
