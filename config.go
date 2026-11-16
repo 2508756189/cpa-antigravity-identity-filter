@@ -28,11 +28,29 @@ type customRule struct {
 	useIdentity bool
 }
 
+// scopeSet selects which protocol positions may be rewritten.
+// Only initial is on by default. The other scopes are exact opt-ins.
+type scopeSet struct {
+	initial          bool
+	subsequentSystem bool
+	toolDescriptions bool
+}
+
+// neutralizeSet holds optional exact-phrase rules. Both default off.
+// They run only inside a scope that is already enabled.
+type neutralizeSet struct {
+	desktopContext bool
+	poweredByModel bool
+}
+
 type config struct {
 	identity       string
 	replaceAsCodex bool
 	clients        clientSet
 	custom         []customRule
+	scopes         scopeSet
+	neutralize     neutralizeSet
+	diagnostics    bool
 }
 
 func defaultConfig() config {
@@ -48,6 +66,7 @@ func defaultConfig() config {
 			opencode:       true,
 			openclaw:       true,
 		},
+		scopes: scopeSet{initial: true},
 	}
 }
 
@@ -124,7 +143,61 @@ func parseConfigYAML(raw []byte) (config, error) {
 		}
 		cfg.custom = rules
 	}
+	if value, exists := values["scopes"]; exists {
+		if err := parseScopes(value, &cfg.scopes); err != nil {
+			return config{}, err
+		}
+	}
+	if value, exists := values["neutralize"]; exists {
+		if err := parseNeutralize(value, &cfg.neutralize); err != nil {
+			return config{}, err
+		}
+	}
+	if value, exists := values["diagnostics"]; exists {
+		parsed, err := parseBool(value)
+		if err != nil {
+			return config{}, fmt.Errorf("diagnostics %w", err)
+		}
+		cfg.diagnostics = parsed
+	}
 	return cfg, nil
+}
+
+func parseScopes(value any, dest *scopeSet) error {
+	return applyBoolFlags(value, map[string]*bool{
+		"initial":           &dest.initial,
+		"subsequent_system": &dest.subsequentSystem,
+		"tool_descriptions": &dest.toolDescriptions,
+	}, "scopes", "scope")
+}
+
+func parseNeutralize(value any, dest *neutralizeSet) error {
+	return applyBoolFlags(value, map[string]*bool{
+		"desktop_context":  &dest.desktopContext,
+		"powered_by_model": &dest.poweredByModel,
+	}, "neutralize", "neutralize")
+}
+
+func applyBoolFlags(value any, known map[string]*bool, mappingName, itemName string) error {
+	if value == nil {
+		return nil
+	}
+	fields, ok := value.(map[string]any)
+	if !ok {
+		return fmt.Errorf("%s must be a mapping", mappingName)
+	}
+	for key, raw := range fields {
+		dest, exists := known[key]
+		if !exists {
+			return fmt.Errorf("unknown %s %q", itemName, key)
+		}
+		parsed, err := parseBool(raw)
+		if err != nil {
+			return fmt.Errorf("%s.%s %w", mappingName, key, err)
+		}
+		*dest = parsed
+	}
+	return nil
 }
 
 func parseBool(value any) (bool, error) {

@@ -31,7 +31,7 @@ func TestBuiltinIdentityRules(t *testing.T) {
 		{
 			name: "codex gpt-6 paragraph",
 			in:   "You are Codex, an agent based on GPT-6. You and the user share one workspace, and your job is to collaborate with them until their intended goal is completely handled.\n\n# When to ask the user for permission\n\nKeep this.",
-			want: identityCodingBlock + "\n\n# When to ask the user for permission\n\nKeep this.",
+			want: identityCodingBlock + " You and the user share one workspace, and your job is to collaborate with them until their intended goal is completely handled.\n\n# When to ask the user for permission\n\nKeep this.",
 		},
 		{
 			name: "codex gpt-5 paragraph",
@@ -56,7 +56,7 @@ func TestBuiltinIdentityRules(t *testing.T) {
 		{
 			name: "claude code with following sentence",
 			in:   "You are Claude Code, Anthropic's official CLI for Claude.\nYou are an interactive CLI tool that helps users with software engineering tasks.\n\n# Tools",
-			want: identityCodingBlock + "\n\n# Tools",
+			want: identityCodingBlock + "\nYou are an interactive CLI tool that helps users with software engineering tasks.\n\n# Tools",
 		},
 		{
 			name: "claude code exact line",
@@ -96,7 +96,7 @@ func TestBuiltinIdentityRules(t *testing.T) {
 		{
 			name: "opencode with following line",
 			in:   "You are OpenCode, the best coding agent on the planet.\nYou are an interactive CLI tool that helps users.\n\n# later",
-			want: identityCodingBlock + "\n\n# later",
+			want: identityCodingBlock + "\nYou are an interactive CLI tool that helps users.\n\n# later",
 		},
 		{
 			name: "opencode lowercase",
@@ -275,22 +275,103 @@ func TestClientTogglesAndCustomRules(t *testing.T) {
 	}
 }
 
-func TestParagraphEnd(t *testing.T) {
+func TestSentenceBoundStopsBeforeFollowingGuidance(t *testing.T) {
+	cfg := defaultConfig()
+	guidance := "You are an agent working with the user toward their goals, using your own judgment along the way."
 	tests := []struct {
+		name string
 		in   string
-		want int
+		want string
 	}{
-		{in: "abc\n\nrest", want: 3},
-		{in: "abc\r\n\r\nrest", want: 3},
-		{in: "abc\n \nrest", want: 3},
-		{in: "abc\nrest", want: len("abc\nrest")},
-		{in: "abc", want: 3},
-		{in: "", want: 0},
+		{
+			name: "same paragraph",
+			in:   "You are ZCode, an interactive agent. " + guidance,
+			want: identityCodingBlock + " " + guidance,
+		},
+		{
+			name: "no blank line",
+			in:   "You are ZCode, an interactive coding agent.\n" + guidance,
+			want: identityCodingBlock + "\n" + guidance,
+		},
+		{
+			name: "crlf no blank line",
+			in:   "You are ZCode, an interactive agent.\r\n" + guidance,
+			want: identityCodingBlock + "\r\n" + guidance,
+		},
+		{
+			name: "leading and trailing whitespace",
+			in:   "\tYou are Codex, a coding agent based on GPT-5.  \n",
+			want: "\t" + identityCodingBlock + "  \n",
+		},
 	}
 	for _, tt := range tests {
-		if got := paragraphEnd(tt.in); got != tt.want {
-			t.Fatalf("paragraphEnd(%q) = %d, want %d", tt.in, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			got, changed := rewriteSystemText(t, tt.in, cfg)
+			if !changed || got != tt.want {
+				t.Fatalf("changed=%v got %q\nwant %q", changed, got, tt.want)
+			}
+			again, changedAgain := rewriteSystemText(t, got, cfg)
+			if changedAgain || again != got {
+				t.Fatalf("not idempotent: changed=%v got %q", changedAgain, again)
+			}
+			if strings.Count(got, identityCodingBlock) != 1 {
+				t.Fatalf("identity block count = %d", strings.Count(got, identityCodingBlock))
+			}
+		})
+	}
+}
+
+func TestUnrecognizedDeclarationsStay(t *testing.T) {
+	cfg := defaultConfig()
+	samples := []string{
+		"You are ZCode, an interactive agent",
+		"You are ZCode, an interactive agent\nYou are an agent working with the user toward their goals, using your own judgment along the way.",
+		"You are ZCode, see .zcode/notes.",
+		"You are Codex, see .codex/config.",
+		"You are Codex, open https://example.test/docs.",
+		"Note: You are Codex, a coding agent based on GPT-5.",
+		"Use Codex and GPT and OpenAI. Path .zcode/keep and .codex/keep.",
+		"You are SomethingElse, an agent based on GPT-5.",
+		"You are zcode, an interactive agent.",
+	}
+	for _, sample := range samples {
+		t.Run(sample, func(t *testing.T) {
+			got, changed := rewriteSystemText(t, sample, cfg)
+			if changed || got != sample {
+				t.Fatalf("changed=%v got %q", changed, got)
+			}
+		})
+	}
+}
+
+func TestCustomParagraphIsSentenceBounded(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.clients = clientSet{}
+	cfg.custom = []customRule{{
+		re:          regexp.MustCompile(`^You are Example,`),
+		paragraph:   true,
+		useIdentity: true,
+	}}
+	in := "You are Example, a sample agent. Keep the next sentence.\n\n# later"
+	got, changed := rewriteSystemText(t, in, cfg)
+	want := identityCodingBlock + " Keep the next sentence.\n\n# later"
+	if !changed || got != want {
+		t.Fatalf("changed=%v got %q", changed, got)
+	}
+	noPeriod := "You are Example, a sample agent\n\n# later"
+	got, changed = rewriteSystemText(t, noPeriod, cfg)
+	if changed || got != noPeriod {
+		t.Fatalf("unbounded custom paragraph changed: %q", got)
+	}
+
+	cfg.custom = []customRule{{
+		re:          regexp.MustCompile(`(?s)^You are Example,.*`),
+		paragraph:   true,
+		useIdentity: true,
+	}}
+	got, changed = rewriteSystemText(t, in, cfg)
+	if !changed || got != want {
+		t.Fatalf("greedy paragraph was not clamped: changed=%v got %q", changed, got)
 	}
 }
 
