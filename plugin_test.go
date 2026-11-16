@@ -57,7 +57,7 @@ func TestRegisterDeclaresIdentityFilter(t *testing.T) {
 	for _, field := range meta.ConfigFields {
 		seen[field.Name] = true
 	}
-	for _, name := range []string{"identity", "replace_as_codex", "clients", "custom_rules"} {
+	for _, name := range []string{"identity", "replace_as_codex", "clients", "custom_rules", "scopes", "neutralize", "diagnostics"} {
 		if !seen[name] {
 			t.Fatalf("missing config field %s in %#v", name, meta.ConfigFields)
 		}

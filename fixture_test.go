@@ -41,7 +41,7 @@ func TestSanitizedCodexResponsesFixture(t *testing.T) {
 		t.Fatalf("unmarshal: %v\n%s", err, got)
 	}
 	first := parsed.Input[0].Content[0].Text
-	if !strings.HasPrefix(first, identityCodingBlock+"\n\n# When to ask the user for permission\n") {
+	if !strings.HasPrefix(first, identityCodingBlock+" You and the user share one workspace, and your job is to collaborate with them until their intended goal is completely handled.\n\n# When to ask the user for permission\n") {
 		t.Fatalf("first text = %q", first)
 	}
 	if !strings.Contains(first, "# Personality\n\nAs Antigravity, you are a curious, thoughtful collaborator") {

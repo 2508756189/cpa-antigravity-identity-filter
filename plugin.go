@@ -93,7 +93,7 @@ func configFields() []pluginapi.ConfigField {
 		{
 			Name:        "replace_as_codex",
 			Type:        pluginapi.ConfigFieldTypeBoolean,
-			Description: "Replace the first \"As Codex,\" in the first system/developer text with \"As Antigravity,\". Defaults to true.",
+			Description: "Replace the first \"As Codex,\" in the initial system/developer text with \"As Antigravity,\". Defaults to true. Applies only when scopes.initial is enabled.",
 		},
 		{
 			Name:        "clients",
@@ -103,7 +103,22 @@ func configFields() []pluginapi.ConfigField {
 		{
 			Name:        "custom_rules",
 			Type:        pluginapi.ConfigFieldTypeArray,
-			Description: "Extra anchored rules. Each item has pattern, optional replacement (omit to use the selected identity block), and optional paragraph.",
+			Description: "Extra anchored rules. Each item has pattern, optional replacement (omit to use the selected identity block), and optional paragraph. paragraph extends the match to the end of that sentence and does not consume through a blank line.",
+		},
+		{
+			Name:        "scopes",
+			Type:        pluginapi.ConfigFieldTypeObject,
+			Description: "initial (default true) rewrites the first system/developer text. subsequent_system and tool_descriptions default false and opt in later system/developer messages or tool description fields.",
+		},
+		{
+			Name:        "neutralize",
+			Type:        pluginapi.ConfigFieldTypeObject,
+			Description: "Optional exact-phrase rules, default false: desktop_context and powered_by_model. They run only inside an enabled scope.",
+		},
+		{
+			Name:        "diagnostics",
+			Type:        pluginapi.ConfigFieldTypeBoolean,
+			Description: "When true, record rule id, scope, and change count through the host log. Default false. Prompt text is never logged.",
 		},
 	}
 }

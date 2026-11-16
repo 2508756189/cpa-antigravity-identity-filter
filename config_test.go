@@ -13,6 +13,12 @@ func TestParseConfigDefaultsAndHostKeys(t *testing.T) {
 	if cfg.identity != identityCoding || !cfg.replaceAsCodex || !cfg.clients.codex || !cfg.clients.openclaw {
 		t.Fatalf("defaults changed by host keys: %+v", cfg)
 	}
+	if !cfg.scopes.initial || cfg.scopes.subsequentSystem || cfg.scopes.toolDescriptions {
+		t.Fatalf("scope defaults = %+v", cfg.scopes)
+	}
+	if cfg.neutralize.desktopContext || cfg.neutralize.poweredByModel || cfg.diagnostics {
+		t.Fatalf("optional rules defaulted on: %+v diagnostics=%v", cfg.neutralize, cfg.diagnostics)
+	}
 	if len(cfg.custom) != 0 {
 		t.Fatalf("custom rules = %#v", cfg.custom)
 	}
@@ -60,5 +66,40 @@ custom_rules:
 	}
 	if _, err := parseConfigYAML([]byte("custom_rules:\n  - pattern: '('\n")); err == nil {
 		t.Fatal("invalid pattern was accepted")
+	}
+}
+
+func TestParseScopesNeutralizeAndDiagnostics(t *testing.T) {
+	cfg, err := parseConfigYAML([]byte(`
+diagnostics: true
+scopes:
+  initial: false
+  subsequent_system: true
+  tool_descriptions: true
+neutralize:
+  desktop_context: true
+  powered_by_model: true
+`))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cfg.scopes.initial || !cfg.scopes.subsequentSystem || !cfg.scopes.toolDescriptions {
+		t.Fatalf("scopes = %+v", cfg.scopes)
+	}
+	if !cfg.neutralize.desktopContext || !cfg.neutralize.poweredByModel || !cfg.diagnostics {
+		t.Fatalf("neutralize = %+v diagnostics=%v", cfg.neutralize, cfg.diagnostics)
+	}
+
+	if _, err := parseConfigYAML([]byte("scopes:\n  reminder_tags: true\n")); err == nil || !strings.Contains(err.Error(), "unknown scope") {
+		t.Fatalf("unknown scope error = %v", err)
+	}
+	if _, err := parseConfigYAML([]byte("neutralize:\n  codex: true\n")); err == nil || !strings.Contains(err.Error(), "unknown neutralize") {
+		t.Fatalf("unknown neutralize error = %v", err)
+	}
+	if _, err := parseConfigYAML([]byte("diagnostics: yes\n")); err == nil {
+		t.Fatal("non-boolean diagnostics was accepted")
+	}
+	if _, err := parseConfigYAML([]byte("scopes: []\n")); err == nil {
+		t.Fatal("scope list was accepted")
 	}
 }
